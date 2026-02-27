@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compras de Katherine y Henrry</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16a34a">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+<style>
+.bought{ text-decoration: line-through; opacity:.5 }
+</style>
+</head>
+
+<body class="bg-gray-100 p-4 pb-44">
+
+<h1 class="text-2xl font-bold text-center mb-4">
+🏠 Compras de Katherine y Henrry
+</h1>
+
+<button onclick="installApp()" class="bg-green-600 text-white w-full p-3 rounded-xl mb-3">
+📲 Guardar como App
+</button>
+
+<div class="bg-white p-4 rounded-xl mb-4 shadow">
+<h2 class="font-bold mb-2">➕ Agregar nuevo artículo</h2>
+
+<input id="newName" placeholder="Nombre del artículo"
+class="border p-2 w-full mb-2 rounded">
+
+<input id="newPrice" type="number" placeholder="Precio"
+class="border p-2 w-full mb-2 rounded">
+
+<select id="categorySelect"
+class="border p-2 w-full mb-2 rounded"
+onchange="toggleNewCategoryInput()">
+</select>
+
+<input id="newCategoryInput"
+placeholder="Escribe nueva categoría"
+class="border p-2 w-full mb-2 rounded hidden">
+
+<button onclick="addItem()"
+class="bg-blue-600 text-white w-full p-2 rounded">
+Agregar
+</button>
+</div>
+
+<div id="content"></div>
+
+<div class="fixed bottom-0 left-0 right-0 bg-white p-4 border-t shadow">
+<p>Total: RD$ <span id="totalSpan">0</span></p>
+<p>Comprado: RD$ <span id="boughtSpan">0</span></p>
+<p>Falta: RD$ <span id="remainSpan">0</span></p>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+  // Configuración proporcionada por el usuario
+  const firebaseConfig = {
+    apiKey: "AIzaSyBZOqWiu3SfwlldceYZ6wt9jDXriAE8uJ0",
+    authDomain: "mudanza-katherine-henry.firebaseapp.com",
+    projectId: "mudanza-katherine-henry",
+    storageBucket: "mudanza-katherine-henry.firebasestorage.app",
+    messagingSenderId: "637697134729",
+    appId: "1:637697134729:web:beb82cb28b6701ce5c7658",
+    measurementId: "G-PPW8TR3XR5"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const dbRef = ref(db, 'compras');
+
+  // DATOS ORIGINALES (Para carga inicial si la base de datos está vacía)
+  const dataInit = {
+    "🔌 Electrodomésticos":[
+    ["🧺 Lavadora",68000,true],["🧊 Nevera",52000,true],["🔥 Estufa",62000,true],
+    ["🥤 Licuadora",6000,false],["❄️ Aire",35800,true],["📺 TV",40000,false],
+    ["🍲 Microondas",7800,true],["🍞 Tostadora",6795,true],
+    ["🍟 Freidora",5000,false],["🛢️ Extractor",10000,false],["🧃 Jugo",5000,false]
+    ],
+    "🪑 Muebles":[
+    ["🛋️ Mueble",70000,false],["🍽️ Comedor",70000,false],
+    ["🗄️ Gavetero",20000,false],["📦 Credenza",10000,false],
+    ["🛏️ Mesitas",12000,false]
+    ],
+    "⚡ Energía y gas":[
+    ["🔋 Inversor",34000,false],["⛽ Tanques gas",10000,false]
+    ],
+    "🏠 Hogar":[
+    ["🌀 Abanico",3500,false],["👔 Plancha",3000,false],["🪟 Cortinas",5000,false],
+    ["🛏️ Sábanas",5000,false],["🛌 Almohadas",5000,false],["🖼️ Cuadros",5000,false],
+    ["🪞 Espejos",5000,false],["🪄 Palo cortina",5000,false],
+    ["🪑 Sillas",1500,false],["🍳 Ollas",10000,false],
+    ["🍽️ Platos",10000,false],["🏋️ Gym",30000,false]
+    ],
+    "🍽️ Utensilios":[
+    ["🍽️ Platos",1100,false],["🥣 Hondos",660,false],["🥄 Cucharas",300,false],
+    ["🍴 Tenedores",300,false],["🔪 Cuchillos",500,false],["🥛 Vasos",695,false],
+    ["🍷 Copas",515,false],["☕ Tazas",500,false],["🍳 Sartenes",2000,false],
+    ["🔪 Carne",1000,true],["🪵 Tabla",1000,true],["📦 Porta",850,true],
+    ["☕ Greca",865,true]
+    ]
+  };
+
+  let data = {};
+
+  // ESCUCHAR CAMBIOS EN FIREBASE
+  onValue(dbRef, (snapshot) => {
+    const val = snapshot.val();
+    if (val) {
+      data = val;
+    } else {
+      // Si la DB está vacía, subimos los datos iniciales
+      data = dataInit;
+      set(dbRef, data);
+    }
+    render();
+  });
+
+  // FUNCIONES GLOBALES
+  window.saveData = () => set(dbRef, data);
+
+  window.addItem = () => {
+    let name = document.getElementById("newName").value.trim();
+    let price = Number(document.getElementById("newPrice").value);
+    let select = document.getElementById("categorySelect");
+    let category = select.value === "__new__" ? document.getElementById("newCategoryInput").value.trim() : select.value;
+
+    if(!name || !price || !category) return alert("Completa todos los campos");
+    if(!data[category]) data[category] = [];
+    data[category].push([name, price, false]);
+    
+    document.getElementById("newName").value = "";
+    document.getElementById("newPrice").value = "";
+    window.saveData();
+  };
+
+  window.toggle = (cat, i) => {
+    data[cat][i][2] = !data[cat][i][2];
+    window.saveData();
+  };
+
+  window.updateName = (cat, i, val) => {
+    data[cat][i][0] = val;
+    window.saveData();
+  };
+
+  window.updatePrice = (cat, i, val) => {
+    data[cat][i][1] = Number(val) || 0;
+    window.saveData();
+  };
+
+  window.delItem = (cat, i) => {
+    if(confirm("¿Borrar artículo?")) {
+      data[cat].splice(i, 1);
+      if(data[cat].length === 0) delete data[cat];
+      window.saveData();
+    }
+  };
+
+  window.renameCategory = (oldName) => {
+    let newName = prompt("Nuevo nombre de categoría:", oldName);
+    if(!newName || data[newName]) return;
+    data[newName] = data[oldName];
+    delete data[oldName];
+    window.saveData();
+  };
+
+  window.deleteCategory = (cat) => {
+    if(confirm("¿Eliminar categoría completa?")) {
+      delete data[cat];
+      window.saveData();
+    }
+  };
+
+  window.toggleNewCategoryInput = () => {
+    const select = document.getElementById("categorySelect");
+    const input = document.getElementById("newCategoryInput");
+    input.classList.toggle("hidden", select.value !== "__new__");
+  };
+
+  function render() {
+    let cont = document.getElementById("content");
+    cont.innerHTML = "";
+    let total=0, bought=0, remain=0;
+
+    for(let cat in data) {
+      let section = document.createElement("div");
+      section.innerHTML = `<div class="flex justify-between items-center mt-6">
+        <h2 class="font-bold text-lg">${cat}</h2>
+        <div>
+          <button onclick="renameCategory('${cat}')" class="text-blue-600 mr-3">✏️</button>
+          <button onclick="deleteCategory('${cat}')" class="text-red-600">🗑️</button>
+        </div>
+      </div>`;
+      cont.appendChild(section);
+
+      data[cat].forEach((it, i) => {
+        total += it[1];
+        if(it[2]) bought += it[1]; else remain += it[1];
+
+        let d = document.createElement("div");
+        d.className = "bg-white p-3 rounded-xl flex justify-between items-center mt-2 shadow";
+        d.innerHTML = `
+          <div class="w-full flex items-center gap-2">
+            <input type="checkbox" ${it[2]?"checked":""} onclick="toggle('${cat}',${i})" class="w-5 h-5">
+            <input value="${it[0]}" onchange="updateName('${cat}',${i},this.value)" class="border p-1 rounded flex-grow ${it[2]?'bought':''}">
+            <span class="text-xs text-gray-400">RD$</span>
+            <input type="number" value="${it[1]}" onchange="updatePrice('${cat}',${i},this.value)" class="border w-20 p-1 rounded">
+          </div>
+          <button onclick="delItem('${cat}',${i})" class="text-red-500 text-2xl ml-2">&times;</button>`;
+        cont.appendChild(d);
+      });
+    }
+
+    document.getElementById("totalSpan").textContent = total.toLocaleString();
+    document.getElementById("boughtSpan").textContent = bought.toLocaleString();
+    document.getElementById("remainSpan").textContent = remain.toLocaleString();
+    populateCategories();
+  }
+
+  function populateCategories() {
+    const select = document.getElementById("categorySelect");
+    let currentVal = select.value;
+    select.innerHTML = "";
+    for(let cat in data) {
+      let opt = new Option(cat, cat);
+      select.add(opt);
+    }
+    select.add(new Option("➕ Nueva categoría", "__new__"));
+    if(currentVal) select.value = currentVal;
+  }
+</script>
+
+<script>
+  /* LÓGICA PWA */
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+  });
+
+  function installApp(){
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+    } else {
+      alert("En iPhone toca Compartir → Agregar a pantalla de inicio 📱");
+    }
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=> console.log("SW no registrado"));
+  }
+</script>
+
+</body>
+</html>
